@@ -1,0 +1,76 @@
+<Window x:Class="RelayControlWPF.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Relay Control · UART"
+        Height="640" Width="460"
+        ResizeMode="CanMinimize"
+        Background="{StaticResource BgBrush}"
+        FontFamily="Segoe UI"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- Header -->
+            <RowDefinition Height="Auto"/>  <!-- Connection card -->
+            <RowDefinition Height="*"/>     <!-- Relay list -->
+            <RowDefinition Height="Auto"/>  <!-- Bottom actions -->
+        </Grid.RowDefinitions>
+
+        <!-- ==================== HEADER ==================== -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Relay Control" Style="{StaticResource TitleText}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                <Ellipse x:Name="StatusDot" Width="9" Height="9" Fill="{StaticResource DangerBrush}"
+                         VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBlock x:Name="StatusText" Text="Not connected" Style="{StaticResource SubtitleText}"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ==================== CONNECTION CARD ==================== -->
+        <Border Grid.Row="1" Background="{StaticResource CardBrush}" CornerRadius="14"
+                BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
+                Padding="16" Margin="0,0,0,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <ComboBox x:Name="PortComboBox" Grid.Column="0" Style="{StaticResource DarkComboBox}"
+                          Margin="0,0,8,0" VerticalAlignment="Center" VerticalContentAlignment="Center"
+                          Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                <Button x:Name="RefreshButton" Grid.Column="1" Content="🔄" Width="40" Height="36"
+                        Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" FontSize="16"
+                        Click="RefreshButton_Click"/>
+
+                <Button x:Name="ConnectButton" Grid.Column="2" Content="Connect" Width="110" Height="36"
+                        Style="{StaticResource FlatButton}" Click="ConnectButton_Click" FontSize="14"/>
+            </Grid>
+        </Border>
+
+        <!-- ==================== RELAY CARDS ==================== -->
+        <StackPanel Grid.Row="2" x:Name="RelayListPanel">
+            <!-- 5 relay cards are added here programmatically in MainWindow.xaml.cs
+                 so the toggle event wiring and numbering stay in one place. -->
+        </StackPanel>
+
+        <!-- ==================== BOTTOM ACTIONS ==================== -->
+        <Grid Grid.Row="3" Margin="0,20,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="AllOnButton" Grid.Column="0" Content="Turn all ON"
+                    Style="{StaticResource FlatButton}" Background="{StaticResource OnBrush}"
+                    Height="48" Click="AllOnButton_Click" FontSize="16" Padding="20,14"/>
+
+            <Button x:Name="AllOffButton" Grid.Column="2" Content="Turn all OFF"
+                    Style="{StaticResource SecondaryButton}" Height="48"
+                    Click="AllOffButton_Click" FontSize="16" Padding="20,14"/>
+        </Grid>
+    </Grid>
+</Window>
