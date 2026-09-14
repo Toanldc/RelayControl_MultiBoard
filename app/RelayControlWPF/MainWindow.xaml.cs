@@ -10,7 +10,7 @@ namespace RelayControlWPF
 {
     public partial class MainWindow : Window
     {
-        private const int RelayCount = 5;
+        private const int RelayCount = 8;
         private const int BaudRate = 9600;
 
         private SerialPort? _serialPort;
@@ -36,8 +36,9 @@ namespace RelayControlWPF
         }
 
         // ==================== BUILD RELAY CARDS ====================
-        // Creates 5 identical cards in code so the layout, numbering, and event
-        // wiring for each relay stay consistent and easy to extend.
+        // Creates identical cards in code, laid out in a 2-column grid, so the
+        // layout, numbering, and event wiring for each relay stay consistent
+        // and easy to extend.
         private void BuildRelayCards()
         {
             for (int i = 0; i < RelayCount; i++)
@@ -51,7 +52,7 @@ namespace RelayControlWPF
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(14),
                     Padding = new Thickness(16),
-                    Margin = new Thickness(0, 0, 0, 10)
+                    Margin = new Thickness(0, 0, 12, 12)
                 };
 
                 var grid = new Grid();
@@ -245,11 +246,19 @@ namespace RelayControlWPF
         }
 
         // Syncs the toggle switches to the relay states reported by the board
-        // (from its "STATUS:10101" reply) without re-sending commands back to it.
+        // (from its "STATUS:10101010" reply) without re-sending commands back to it.
         private void ApplyInitialRelayStates(string? statusPayload)
         {
-            if (string.IsNullOrEmpty(statusPayload) || statusPayload.Length != RelayCount)
+            if (string.IsNullOrEmpty(statusPayload))
                 return;
+
+            if (statusPayload.Length != RelayCount)
+            {
+                // Most likely cause: the board is still running older firmware with a
+                // different relay count (re-flash it) rather than a real protocol error.
+                StatusText.Text += $" — state NOT synced (board reported {statusPayload.Length} relays, app expects {RelayCount}; re-flash the board firmware)";
+                return;
+            }
 
             _suppressRelayEvents = true;
             try

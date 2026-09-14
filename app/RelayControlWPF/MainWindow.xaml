@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Relay Control · UART"
-        Height="640" Width="460"
+        Height="700" Width="760"
         ResizeMode="CanMinimize"
         Background="{StaticResource BgBrush}"
         FontFamily="Segoe UI"
@@ -51,10 +51,10 @@
         </Border>
 
         <!-- ==================== RELAY CARDS ==================== -->
-        <StackPanel Grid.Row="2" x:Name="RelayListPanel">
-            <!-- 5 relay cards are added here programmatically in MainWindow.xaml.cs
+        <UniformGrid Grid.Row="2" x:Name="RelayListPanel" Columns="2" VerticalAlignment="Top">
+            <!-- Relay cards are added here programmatically in MainWindow.xaml.cs
                  so the toggle event wiring and numbering stay in one place. -->
-        </StackPanel>
+        </UniformGrid>
 
         <!-- ==================== BOTTOM ACTIONS ==================== -->
         <Grid Grid.Row="3" Margin="0,20,0,0">

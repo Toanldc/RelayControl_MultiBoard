@@ -1,7 +1,7 @@
 # Relay Control (WPF)
 
-Modern WPF desktop app to control 5 relays over UART, matching the `relay_control.ino`
-command protocol (`R1ON`, `R1OFF`, ... `R5ON`, `R5OFF`).
+Modern WPF desktop app to control 8 relays over UART, matching the `relay_control.ino`
+command protocol (`R1ON`, `R1OFF`, ... `R8ON`, `R8OFF`).
 
 ## Requirements
 

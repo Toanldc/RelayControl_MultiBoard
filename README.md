@@ -1,6 +1,6 @@
 # NanoAtmega328-RelayControl
 
-5-relay control over UART (Serial), with firmware for multiple boards sharing
+8-relay control over UART (Serial), with firmware for multiple boards sharing
 the same command protocol, plus a Windows desktop app to drive it.
 
 ## Firmware
@@ -21,8 +21,8 @@ mapping in `src/main.cpp` (GPIO numbering differs per board).
 ```
 R1ON   -> turn relay 1 ON
 R1OFF  -> turn relay 1 OFF
-R2ON / R2OFF ... R5ON / R5OFF
-STATUS -> request the current status of all 5 relays
+R2ON / R2OFF ... R8ON / R8OFF
+STATUS -> request the current status of all 8 relays
 ```
 
 Replies:
@@ -30,7 +30,7 @@ Replies:
 ```
 OK:R1ON              (command executed successfully)
 ERR:UNKNOWN_CMD       (invalid command)
-STATUS:10101           (5-character 0/1 string, relay 1..5, 1=ON, 0=OFF)
+STATUS:10101010         (8-character 0/1 string, relay 1..8, 1=ON, 0=OFF)
 ```
 
 ### Adding a new board
