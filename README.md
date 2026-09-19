@@ -46,14 +46,46 @@ To port the firmware to another board:
 4. Leave the rest of `main.cpp` untouched — it only uses portable Arduino
    framework APIs (`Serial`, `digitalWrite`, `pinMode`, `String`).
 
-### Building
-
-```
-pio run -d firmware-nanoatmega328
-pio run -d firmware-esp32c3-supermini
-```
-
 ## App
 
 [app/RelayControlWPF/](app/RelayControlWPF/) — Windows desktop app for
 sending relay commands over Serial.
+
+## Build & Release
+
+[build/](build/) contains `.bat` scripts that build every firmware and the
+app in one step, without needing `pio` or `dotnet` on PATH manually. Run
+from anywhere — no need to `cd` into a project folder first.
+
+| Script | Builds |
+|---|---|
+| `build/build-nano.bat` | `firmware-nanoatmega328` |
+| `build/build-esp32.bat` | `firmware-esp32c3-supermini` |
+| `build/build-app.bat` | `app/RelayControlWPF` (published, win-x64) |
+| `build/build-all.bat` | all of the above, in order |
+
+Each build copies its output into `out/` (gitignored — regenerated every
+build, not tracked):
+
+```
+out/
+├── firmware-nanoatmega328/      firmware.hex, firmware.elf
+├── firmware-esp32c3-supermini/  firmware.bin, bootloader.bin, partitions.bin, firmware.elf
+└── app/                         RelayControlWPF.exe + runtime files
+```
+
+### Cutting a release
+
+Run `build/build-all.bat` first, then `build/release.bat`. It prompts for a
+version string (e.g. `1.0.0`) and zips each `out/` target into
+`release/<version>/`:
+
+```
+release/1.0.0/
+├── firmware-nanoatmega328.zip
+├── firmware-esp32c3-supermini.zip
+└── RelayControlWPF.zip
+```
+
+Unlike `out/`, `release/` is committed to the repo, so each version's build
+artifacts stay available directly from a clone.
