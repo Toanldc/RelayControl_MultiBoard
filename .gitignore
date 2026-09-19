@@ -5,3 +5,5 @@
 .vscode/ipch
 bin/
 obj/
+out/
+release/
