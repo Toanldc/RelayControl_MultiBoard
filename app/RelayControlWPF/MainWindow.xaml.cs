@@ -1,22 +1,26 @@
 using System;
 using System.IO.Ports;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using RelayControlWPF.Transport;
 
 namespace RelayControlWPF
 {
     public partial class MainWindow : Window
     {
         private const int RelayCount = 8;
-        private const int BaudRate = 9600;
 
-        private SerialPort? _serialPort;
+        private enum ConnectionMode { Serial, Ble }
+
+        private ConnectionMode _mode = ConnectionMode.Serial;
+        private IRelayTransport? _transport;
+        private BleScanner? _bleScanner;
+
         private bool _isConnected;
-        private Thread? _readThread;
-        private volatile bool _stopReadThread;
         private ManualResetEventSlim? _statusEvent;
         private string? _lastStatusPayload;
         private volatile bool _suppressRelayEvents;
@@ -31,6 +35,7 @@ namespace RelayControlWPF
         {
             InitializeComponent();
             BuildRelayCards();
+            SerialModeRadio.IsChecked = true; // fires ModeRadio_Checked, which sets initial control visibility
             RefreshPorts();
             SetControlsEnabled(false);
         }
@@ -109,7 +114,18 @@ namespace RelayControlWPF
             }
         }
 
-        // ==================== PORT HANDLING ====================
+        // ==================== CONNECTION MODE ====================
+        private void ModeRadio_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_isConnected)
+                Disconnect(); // switching transport while connected doesn't make sense
+
+            _mode = SerialModeRadio.IsChecked == true ? ConnectionMode.Serial : ConnectionMode.Ble;
+            PortComboBox.Visibility = _mode == ConnectionMode.Serial ? Visibility.Visible : Visibility.Collapsed;
+            BleDeviceComboBox.Visibility = _mode == ConnectionMode.Ble ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        // ==================== PORT / DEVICE HANDLING ====================
         private void RefreshPorts()
         {
             PortComboBox.Items.Clear();
@@ -129,9 +145,48 @@ namespace RelayControlWPF
             PortComboBox.SelectedIndex = 0;
         }
 
+        private void StartBleScan()
+        {
+            BleDeviceComboBox.Items.Clear();
+            RefreshButton.IsEnabled = false;
+
+            _bleScanner?.Dispose();
+            _bleScanner = new BleScanner();
+            _bleScanner.DeviceFound += OnBleDeviceFound;
+            _bleScanner.Start();
+
+            var scanTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+            scanTimer.Tick += (s, args) =>
+            {
+                scanTimer.Stop();
+                _bleScanner?.Stop();
+                RefreshButton.IsEnabled = true;
+
+                if (BleDeviceComboBox.Items.Count == 0)
+                {
+                    BleDeviceComboBox.Items.Add("No device found");
+                    BleDeviceComboBox.SelectedIndex = 0;
+                }
+            };
+            scanTimer.Start();
+        }
+
+        private void OnBleDeviceFound(BleDeviceInfo device)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                BleDeviceComboBox.Items.Add(device);
+                if (BleDeviceComboBox.Items.Count == 1)
+                    BleDeviceComboBox.SelectedIndex = 0;
+            });
+        }
+
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            RefreshPorts();
+            if (_mode == ConnectionMode.Serial)
+                RefreshPorts();
+            else
+                StartBleScan();
         }
 
         // ==================== CONNECT / DISCONNECT ====================
@@ -145,45 +200,61 @@ namespace RelayControlWPF
 
         private void Connect()
         {
-            string? portName = PortComboBox.SelectedItem as string;
-            if (string.IsNullOrEmpty(portName) || portName == "No port found")
+            string target;
+            string targetLabel;
+
+            if (_mode == ConnectionMode.Serial)
             {
-                MessageBox.Show("Please select a COM port before connecting.", "No COM port",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                string? portName = PortComboBox.SelectedItem as string;
+                if (string.IsNullOrEmpty(portName) || portName == "No port found")
+                {
+                    MessageBox.Show("Please select a COM port before connecting.", "No COM port",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                target = portName;
+                targetLabel = portName;
+            }
+            else
+            {
+                if (BleDeviceComboBox.SelectedItem is not BleDeviceInfo device)
+                {
+                    MessageBox.Show("Please scan and select a BLE device before connecting.", "No BLE device",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                target = device.Address.ToString();
+                targetLabel = device.Name;
             }
 
             ConnectButton.IsEnabled = false;
             ConnectButton.Content = "Connecting...";
-            StatusText.Text = $"Connecting to {portName}...";
+            StatusText.Text = $"Connecting to {targetLabel}...";
 
-            var connectThread = new Thread(() => ConnectWorker(portName)) { IsBackground = true };
+            _transport = _mode == ConnectionMode.Serial ? new SerialTransport() : new BleTransport();
+            _transport.LineReceived += OnTransportLineReceived;
+
+            var connectThread = new Thread(() => ConnectWorker(target, targetLabel)) { IsBackground = true };
             connectThread.Start();
         }
 
         // Runs on a background thread so the UI doesn't freeze while we wait
-        // for the board's boot handshake or probe it with STATUS.
-        private void ConnectWorker(string portName)
+        // for the board's boot handshake or probe it with STATUS. Blocking on
+        // the transport's async calls here is safe because a plain background
+        // Thread has no SynchronizationContext for their continuations to
+        // deadlock on.
+        private void ConnectWorker(string target, string targetLabel)
         {
             try
             {
-                _serialPort = new SerialPort(portName, BaudRate)
-                {
-                    NewLine = "\n",
-                    ReadTimeout = 1000,
-                    WriteTimeout = 1000
-                };
-                _serialPort.Open();
+                _transport!.ConnectAsync(target).GetAwaiter().GetResult();
 
                 _isConnected = true;
                 _statusEvent = new ManualResetEventSlim(false);
                 _lastStatusPayload = null;
-                _stopReadThread = false;
-                _readThread = new Thread(ReadSerialLoop) { IsBackground = true };
-                _readThread.Start();
 
-                // The Nano auto-resets when the port opens, so a command sent right
-                // away can be lost during boot. Retry STATUS a few times until it
+                // The board firmware resets/advertises after connect, so a command
+                // sent right away can be missed. Retry STATUS a few times until it
                 // replies - this both confirms it's the relay board and returns the
                 // real relay states, which we then use to sync the UI toggles.
                 bool identified = false;
@@ -194,7 +265,7 @@ namespace RelayControlWPF
                 }
 
                 string? statusPayload = _lastStatusPayload;
-                Dispatcher.Invoke(() => FinishConnect(portName, identified, statusPayload));
+                Dispatcher.Invoke(() => FinishConnect(targetLabel, identified, statusPayload));
             }
             catch (Exception ex)
             {
@@ -203,22 +274,22 @@ namespace RelayControlWPF
                     ConnectButton.IsEnabled = true;
                     ConnectButton.Content = "Connect";
                     StatusText.Text = "Not connected";
-                    MessageBox.Show($"Could not open port {portName}:\n{ex.Message}", "Connection error",
+                    MessageBox.Show($"Could not connect to {targetLabel}:\n{ex.Message}", "Connection error",
                         MessageBoxButton.OK, MessageBoxImage.Error);
                 });
             }
         }
 
-        private void FinishConnect(string portName, bool identified, string? statusPayload)
+        private void FinishConnect(string targetLabel, bool identified, string? statusPayload)
         {
             ConnectButton.IsEnabled = true;
 
             if (!identified)
             {
                 var result = MessageBox.Show(
-                    $"Port {portName} did not respond with the expected Relay Controller protocol " +
+                    $"{targetLabel} did not respond with the expected Relay Controller protocol " +
                     "(no STATUS reply received).\n\n" +
-                    "You may have selected the wrong COM port, or the device is not running the relay firmware.\n\n" +
+                    "You may have selected the wrong port/device, or it is not running the relay firmware.\n\n" +
                     "Continue connecting anyway?",
                     "Device not verified",
                     MessageBoxButton.YesNo, MessageBoxImage.Warning);
@@ -230,12 +301,12 @@ namespace RelayControlWPF
                 }
 
                 StatusDot.Fill = (Brush)FindResource("WarningBrush");
-                StatusText.Text = $"Connected ({portName}) — unverified";
+                StatusText.Text = $"Connected ({targetLabel}) — unverified";
             }
             else
             {
                 StatusDot.Fill = (Brush)FindResource("OnBrush");
-                StatusText.Text = $"Connected ({portName}) — verified ✓";
+                StatusText.Text = $"Connected ({targetLabel}) — verified ✓";
                 ApplyInitialRelayStates(statusPayload);
             }
 
@@ -279,13 +350,13 @@ namespace RelayControlWPF
 
         private void Disconnect()
         {
-            _stopReadThread = true;
-
-            if (_serialPort != null && _serialPort.IsOpen)
+            if (_transport != null)
             {
-                try { _serialPort.Close(); } catch { /* ignore close errors on shutdown */ }
+                _transport.LineReceived -= OnTransportLineReceived;
+                _transport.Close();
+                _transport.Dispose();
+                _transport = null;
             }
-            _serialPort = null;
 
             _isConnected = false;
             _statusEvent?.Dispose();
@@ -309,54 +380,44 @@ namespace RelayControlWPF
             AllOffButton.IsEnabled = enabled;
         }
 
-        // ==================== SERIAL READ THREAD ====================
-        // Runs on a background thread. Any UI update from here must be marshalled
-        // back to the UI thread via Dispatcher.Invoke.
-        private void ReadSerialLoop()
+        // ==================== TRANSPORT EVENTS ====================
+        // Raised on a background thread by whichever transport is active.
+        // Any UI update from here must be marshalled back via Dispatcher.Invoke.
+        private void OnTransportLineReceived(string line)
         {
-            while (!_stopReadThread && _serialPort != null && _serialPort.IsOpen)
-            {
-                try
-                {
-                    string line = _serialPort.ReadLine().Trim();
-                    if (!string.IsNullOrWhiteSpace(line))
-                    {
-                        Dispatcher.Invoke(() => System.Diagnostics.Debug.WriteLine($"Nano -> {line}"));
+            System.Diagnostics.Debug.WriteLine($"Board -> {line}");
 
-                        // A STATUS reply confirms we're actually talking to the relay
-                        // firmware (not some other device) and carries the real relay states.
-                        if (line.StartsWith("STATUS:"))
-                        {
-                            _lastStatusPayload = line.Substring("STATUS:".Length);
-                            _statusEvent?.Set();
-                        }
-                    }
-                }
-                catch (TimeoutException)
-                {
-                    // No data within the timeout window; loop and try again.
-                }
-                catch (Exception)
-                {
-                    break; // port likely closed/disconnected
-                }
+            // A STATUS reply confirms we're actually talking to the relay
+            // firmware (not some other device) and carries the real relay states.
+            if (line.StartsWith("STATUS:"))
+            {
+                _lastStatusPayload = line.Substring("STATUS:".Length);
+                _statusEvent?.Set();
             }
         }
 
         // ==================== SENDING COMMANDS ====================
         private void SendCommand(string cmd)
         {
-            if (_isConnected && _serialPort != null && _serialPort.IsOpen)
+            if (_isConnected && _transport != null && _transport.IsOpen)
             {
-                try
-                {
-                    _serialPort.Write(cmd + "\n");
-                }
-                catch (Exception ex)
+                _ = SendCommandAsync(cmd);
+            }
+        }
+
+        private async Task SendCommandAsync(string cmd)
+        {
+            try
+            {
+                await _transport!.SendAsync(cmd);
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.Invoke(() =>
                 {
                     MessageBox.Show(ex.Message, "Send error", MessageBoxButton.OK, MessageBoxImage.Error);
                     Disconnect();
-                }
+                });
             }
         }
 
@@ -395,13 +456,14 @@ namespace RelayControlWPF
                 // Setting IsChecked triggers Checked/Unchecked, which calls OnRelayToggled
                 // and sends the command, so we don't need to send it again here.
                 _switches[i].IsChecked = state;
-                Thread.Sleep(50); // avoid flooding the Nano with commands too fast
+                Thread.Sleep(50); // avoid flooding the board with commands too fast
             }
         }
 
         protected override void OnClosed(EventArgs e)
         {
             Disconnect();
+            _bleScanner?.Dispose();
             base.OnClosed(e);
         }
     }
