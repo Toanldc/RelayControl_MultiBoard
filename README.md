@@ -104,9 +104,10 @@ out/
 
 ### Cutting a release
 
-Run `build/build-all.bat` first, then `build/release.bat`. It prompts for a
-version string (e.g. `1.0.0`) and zips each `out/` target into
-`release/<version>/`:
+Run `build/release.bat`. It prompts for a version string (e.g. `1.0.0`),
+rebuilds every firmware and the app from source via `build-all.bat` (so a
+release never reuses stale `out/` files), then zips each `out/` target into
+`release/<version>/`. If any build fails, no release folder is created:
 
 ```
 release/1.0.0/

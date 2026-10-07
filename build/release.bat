@@ -4,19 +4,6 @@ setlocal
 set "OUT_DIR=%~dp0..\out"
 set "RELEASE_ROOT=%~dp0..\release"
 
-if not exist "%OUT_DIR%\firmware-nanoatmega328\firmware.hex" (
-    echo [ERROR] out\firmware-nanoatmega328 build output not found. Run build-all.bat first.
-    exit /b 1
-)
-if not exist "%OUT_DIR%\firmware-esp32c3-supermini\firmware.bin" (
-    echo [ERROR] out\firmware-esp32c3-supermini build output not found. Run build-all.bat first.
-    exit /b 1
-)
-if not exist "%OUT_DIR%\app\RelayControlWPF.exe" (
-    echo [ERROR] out\app build output not found. Run build-all.bat first.
-    exit /b 1
-)
-
 set "VERSION="
 set /p VERSION=Enter release version (e.g. 1.0.0):
 if "%VERSION%"=="" (
@@ -29,6 +16,28 @@ if exist "%RELEASE_DIR%" (
     echo [ERROR] Release "%VERSION%" already exists at "%RELEASE_DIR%".
     exit /b 1
 )
+
+echo.
+echo === Rebuilding everything from source ===
+call "%~dp0build-all.bat"
+if not %errorlevel%==0 (
+    echo [ERROR] Build failed - release "%VERSION%" was not created.
+    exit /b 1
+)
+
+if not exist "%OUT_DIR%\firmware-nanoatmega328\firmware.hex" (
+    echo [ERROR] out\firmware-nanoatmega328 build output not found.
+    exit /b 1
+)
+if not exist "%OUT_DIR%\firmware-esp32c3-supermini\firmware.bin" (
+    echo [ERROR] out\firmware-esp32c3-supermini build output not found.
+    exit /b 1
+)
+if not exist "%OUT_DIR%\app\RelayControlWPF.exe" (
+    echo [ERROR] out\app build output not found.
+    exit /b 1
+)
+
 mkdir "%RELEASE_DIR%"
 
 echo.
