@@ -73,7 +73,11 @@ To port the firmware to another board:
 [app/RelayControlWPF/](app/RelayControlWPF/) — Windows desktop app for
 sending relay commands over UART or BLE. A mode switch at the top picks the
 transport: UART lists COM ports, BLE scans for boards advertising the NUS
-service above and connects by address (no OS-level pairing needed).
+service above and connects by address (no OS-level pairing needed). It also
+supports user-defined **Presets** (own tab) — named, ordered relay sequences with
+per-step delays — run with one click; see
+[app/RelayControlWPF/README.md](app/RelayControlWPF/README.md#presets) for
+details.
 
 ## Build & Release
 

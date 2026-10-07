@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO.Ports;
 using System.Threading;
 using System.Threading.Tasks;
@@ -6,13 +7,14 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using RelayControlWPF.Presets;
 using RelayControlWPF.Transport;
 
 namespace RelayControlWPF
 {
     public partial class MainWindow : Window
     {
-        private const int RelayCount = 8;
+        internal const int RelayCount = 8;
 
         private enum ConnectionMode { Serial, Ble }
 
@@ -31,10 +33,18 @@ namespace RelayControlWPF
         private readonly CheckBox[] _switches = new CheckBox[RelayCount];
         private readonly bool[] _relayState = new bool[RelayCount];
 
+        private readonly List<Preset> _presets = PresetStore.Load();
+        private PresetsView? _presetsView;
+        private volatile bool _presetRunning;
+
+        internal bool IsConnected => _isConnected;
+
         public MainWindow()
         {
             InitializeComponent();
             BuildRelayCards();
+            _presetsView = new PresetsView(_presets, RelayCount, () => IsConnected, RunPreset);
+            PresetsHost.Children.Add(_presetsView);
             SerialModeRadio.IsChecked = true; // fires ModeRadio_Checked, which sets initial control visibility
             RefreshPorts();
             SetControlsEnabled(false);
@@ -458,6 +468,74 @@ namespace RelayControlWPF
                 _switches[i].IsChecked = state;
                 Thread.Sleep(50); // avoid flooding the board with commands too fast
             }
+        }
+
+        // ==================== PRESETS ====================
+        // Runs a preset's steps in order on a background thread, respecting each
+        // step's delay, without freezing the UI - same Thread + Dispatcher.Invoke
+        // pattern ConnectWorker already uses for its own sequencing/waiting.
+        internal void RunPreset(Preset preset)
+        {
+            if (!_isConnected)
+            {
+                MessageBox.Show("Connect to a board before running a preset.", "Not connected",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_presetRunning)
+                return;
+
+            _presetRunning = true;
+            SetControlsEnabled(false);
+            if (_presetsView != null)
+                _presetsView.IsEnabled = false;
+
+            new Thread(() => RunPresetWorker(preset)) { IsBackground = true }.Start();
+        }
+
+        private void RunPresetWorker(Preset preset)
+        {
+            foreach (var step in preset.Steps)
+            {
+                Thread.Sleep(Math.Max(0, step.DelayMs));
+
+                if (!_isConnected)
+                    break; // board disconnected mid-run; stop cleanly instead of applying further steps
+
+                var currentStep = step;
+                Dispatcher.Invoke(() => ApplyPresetStep(currentStep));
+            }
+
+            Dispatcher.Invoke(FinishPresetRun);
+        }
+
+        // Runs on the UI thread. Always sends the relay command explicitly
+        // (rather than relying on the CheckBox Checked/Unchecked event like
+        // SetAll does) because if a step says "Relay 3 ON" and it's already
+        // ON, setting IsChecked to the same value fires no event at all - the
+        // command would silently never be (re-)sent.
+        private void ApplyPresetStep(PresetStep step)
+        {
+            int idx = step.RelayNumber - 1;
+            if (idx < 0 || idx >= RelayCount)
+                return; // ignore steps referencing a relay that no longer exists
+
+            _suppressRelayEvents = true;
+            try { _switches[idx].IsChecked = step.TurnOn; }
+            finally { _suppressRelayEvents = false; }
+
+            _relayState[idx] = step.TurnOn;
+            UpdateRelayVisual(idx, step.TurnOn);
+            SendCommand($"R{idx + 1}{(step.TurnOn ? "ON" : "OFF")}");
+        }
+
+        private void FinishPresetRun()
+        {
+            _presetRunning = false;
+            SetControlsEnabled(_isConnected);
+            if (_presetsView != null)
+                _presetsView.IsEnabled = true;
         }
 
         protected override void OnClosed(EventArgs e)

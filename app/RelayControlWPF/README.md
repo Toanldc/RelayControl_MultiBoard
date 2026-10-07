@@ -22,6 +22,20 @@ dotnet restore
 dotnet run
 ```
 
+## Presets
+
+The "Presets" tab (next to "Control") is for creating named, reusable
+relay sequences — e.g. a "SwitchON" preset that turns relays 1, 2, 3 on in
+order with a delay between each. Each preset has an ordered list of steps
+(relay, ON/OFF, delay before that step in ms); running a preset fires the
+steps in order on a background thread so the UI stays responsive, and the
+relay cards update live as each step executes.
+
+Presets are a pure client-side feature — they just send the same
+`R<n>ON`/`R<n>OFF` commands in sequence, no firmware changes involved — and
+are stored locally at `%AppData%\RelayControlWPF\presets.json`, so they
+persist across app restarts but are specific to the machine the app runs on.
+
 ## Notes
 
 - `System.IO.Ports` (used for Serial communication) is part of the .NET runtime on Windows;

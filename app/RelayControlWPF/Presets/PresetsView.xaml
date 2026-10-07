@@ -1,0 +1,31 @@
+<UserControl x:Class="RelayControlWPF.Presets.PresetsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="Segoe UI">
+
+    <Grid>
+        <!-- List mode -->
+        <Grid x:Name="ListHost">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                <Button DockPanel.Dock="Right" x:Name="NewPresetButton" Content="+ New Preset"
+                        Style="{StaticResource FlatButton}" Height="40" Padding="18,0"
+                        Click="NewPresetButton_Click"/>
+                <TextBlock Text="Saved presets" Style="{StaticResource RelayNameText}" VerticalAlignment="Center"/>
+            </DockPanel>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="PresetListPanel">
+                    <!-- Preset rows are built programmatically in PresetsView.xaml.cs -->
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Editor mode: a PresetEditorView is placed here while creating/editing -->
+        <Grid x:Name="EditorHost" Visibility="Collapsed"/>
+    </Grid>
+</UserControl>

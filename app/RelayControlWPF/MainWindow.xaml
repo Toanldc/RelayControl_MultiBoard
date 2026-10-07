@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Relay Control"
-        Height="700" Width="760"
+        Height="780" Width="760"
         ResizeMode="CanMinimize"
         Background="{StaticResource BgBrush}"
         FontFamily="Segoe UI"
@@ -13,8 +13,7 @@
             <RowDefinition Height="Auto"/>  <!-- Header -->
             <RowDefinition Height="Auto"/>  <!-- Connection mode -->
             <RowDefinition Height="Auto"/>  <!-- Connection card -->
-            <RowDefinition Height="*"/>     <!-- Relay list -->
-            <RowDefinition Height="Auto"/>  <!-- Bottom actions -->
+            <RowDefinition Height="*"/>     <!-- Tabs -->
         </Grid.RowDefinitions>
 
         <!-- ==================== HEADER ==================== -->
@@ -57,35 +56,49 @@
                           Foreground="{StaticResource TextPrimaryBrush}" Visibility="Collapsed"/>
 
                 <Button x:Name="RefreshButton" Grid.Column="1" Content="🔄" Width="40" Height="36"
-                        Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" FontSize="16"
+                        Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" FontSize="16" Padding="0"
                         Click="RefreshButton_Click"/>
 
                 <Button x:Name="ConnectButton" Grid.Column="2" Content="Connect" Width="110" Height="36"
-                        Style="{StaticResource FlatButton}" Click="ConnectButton_Click" FontSize="14"/>
+                        Style="{StaticResource FlatButton}" Click="ConnectButton_Click" FontSize="14" Padding="16,0"/>
             </Grid>
         </Border>
 
-        <!-- ==================== RELAY CARDS ==================== -->
-        <UniformGrid Grid.Row="3" x:Name="RelayListPanel" Columns="2" VerticalAlignment="Top">
-            <!-- Relay cards are added here programmatically in MainWindow.xaml.cs
-                 so the toggle event wiring and numbering stay in one place. -->
-        </UniformGrid>
+        <!-- ==================== TABS ==================== -->
+        <TabControl Grid.Row="3" Style="{StaticResource DarkTabControl}">
+            <TabItem Header="Control">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>     <!-- Relay list -->
+                        <RowDefinition Height="Auto"/>  <!-- Bottom actions -->
+                    </Grid.RowDefinitions>
 
-        <!-- ==================== BOTTOM ACTIONS ==================== -->
-        <Grid Grid.Row="4" Margin="0,20,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="16"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+                    <!-- Relay cards are added to RelayListPanel programmatically in
+                         MainWindow.xaml.cs so toggle wiring and numbering stay in one place. -->
+                    <UniformGrid Grid.Row="0" x:Name="RelayListPanel" Columns="2" VerticalAlignment="Top"/>
 
-            <Button x:Name="AllOnButton" Grid.Column="0" Content="Turn all ON"
-                    Style="{StaticResource FlatButton}" Background="{StaticResource OnBrush}"
-                    Height="48" Click="AllOnButton_Click" FontSize="16" Padding="20,14"/>
+                    <Grid Grid.Row="1" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-            <Button x:Name="AllOffButton" Grid.Column="2" Content="Turn all OFF"
-                    Style="{StaticResource SecondaryButton}" Height="48"
-                    Click="AllOffButton_Click" FontSize="16" Padding="20,14"/>
-        </Grid>
+                        <Button x:Name="AllOnButton" Grid.Column="0" Content="Turn all ON"
+                                Style="{StaticResource FlatButton}" Background="{StaticResource OnBrush}"
+                                Height="48" Click="AllOnButton_Click" FontSize="16" Padding="20,0"/>
+
+                        <Button x:Name="AllOffButton" Grid.Column="2" Content="Turn all OFF"
+                                Style="{StaticResource SecondaryButton}" Height="48"
+                                Click="AllOffButton_Click" FontSize="16" Padding="20,0"/>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Presets">
+                <!-- PresetsView is created in MainWindow.xaml.cs (needs the preset list and callbacks) -->
+                <Grid x:Name="PresetsHost"/>
+            </TabItem>
+        </TabControl>
     </Grid>
 </Window>
